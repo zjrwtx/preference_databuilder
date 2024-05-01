@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "preference-databuilder"
+version = "0.1.0"
+description = ""
+authors = ["zjrwtx <3038880699@qq.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+transformers = "^4.40.1"
+numpy = "^1.26.4"
+pandas = "^2.2.2"
+streamlit = "^1.33.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
