@@ -1,19 +1,33 @@
 
 """
-这是注释
+微信公众号：正经人王同学
+
 """
 import os
 import random
 import numpy as np
 import pandas as pd
 import streamlit as st
-from transformers import (
-    AutoModel,
-    AutoTokenizer,
 
-)
 import json
+from openai import OpenAI
 
+from dotenv import load_dotenv
+# 在使用API密钥和基础URL之前加载.env文件
+load_dotenv()
+
+# 现在可以通过os.environ访问这些值
+API_BASE = os.environ.get("API_BASE")
+API_KEY = os.environ.get("API_KEY")
+
+
+client = OpenAI(
+    # defaults to os.environ.get("OPENAI_API_KEY")
+    api_key="dbe000b3e7f44df98d6c3f330cccf5a1",
+    base_url="http://localhost:11434/v1/"
+    
+    # base_url="https://api.lingyiwanwu.com/v1/"
+)
 
 
 
@@ -22,23 +36,23 @@ import json
 
 
 st.set_page_config(
-    page_title="Rank List Labeler",
-    page_icon='📌',
+    page_title="PPO训练偏好数据排序助手",
+    page_icon='',
     layout="wide"
 )
 
 MODEL_CONFIG = {
-    'model_name': 'THUDM/chatglm-6b-int4',             # backbone
+    'model_name': '',             # backbone
     'dataset_file': 'total_dataset.json',       # 标注数据集的存放文件
-    'rank_list_len': 6,                                           # 排序列表的长度
+    'rank_list_len': 4,                                           # 排序列表的长度
     'max_gen_seq_len': 1000,                                        # 生成答案最大长度
     'random_prompts': [                                           # 随机prompt池
-                        '今天我去了',
-                        '这部电影很',
-                        '刚收到货，感觉',
-                        '这部电影很',
-                        '说实话，真的很',
-                        '这次购物总的来说体验很'
+                        '一起去吃个饭吗',
+                        '你真好看',
+                        '你干嘛这么唯唯诺诺',
+                        '喜欢吃杨枝甘露不',
+                        '跟我说说rust的应用场景吧',
+                        '人生的意义是什么'
                     ]
 }
 
@@ -57,37 +71,32 @@ RANK_COLOR = [
 if 'model_config' not in st.session_state:
     st.session_state['model_config'] = MODEL_CONFIG
 
-@st.cache_resource()
-def get_model():
-    tokenizer = AutoTokenizer.from_pretrained("D:\chat\models\chatglm-6b-int4", trust_remote_code=True)#改为自己的模型路径
-    model = AutoModel.from_pretrained("D:\chat\models\chatglm-6b-int4", trust_remote_code=True).half().cuda()#改为自己的模型路径
-    model = model.eval()
-    return tokenizer, model
-
-
-def predict(input, history=None):
-    tokenizer, model = get_model()
-    with st.empty():
-        st.write(input) # 将 message 函数改成了 st.write
-        st.write("AI正在回复:")
-        for response, history in model.stream_chat(tokenizer, input, history):
-            query, response = history[-1]
-            st.write(response)
-        return response
-
-
-
 if 'current_results' not in st.session_state:
     st.session_state['current_results'] = [''] * MODEL_CONFIG['rank_list_len']
 
 if 'current_prompt' not in st.session_state:
-    st.session_state['current_prompt'] = '今天早晨我去了'
+    st.session_state['current_prompt'] = '喜欢吃杨枝甘露不'
+
+def predict(input):
+  completion = client.chat.completions.create(
+        model="qwen:0.5b",
+        messages=[{"role": "user", "content":input}],
+        max_tokens=1000,
+        # stream=True,
+    )
+  response=completion.choices[0].message.content
+  with st.empty():
+        st.write(input) 
+        st.write("AI正在回复:")
+        st.write(response)
+  return  response
 
 
 ######################### 函数定义区 ##############################
 
 def generate_text():
     current_results = []
+
     for _ in range(MODEL_CONFIG['rank_list_len']):
 
         # 检查是否被中断
@@ -96,15 +105,21 @@ def generate_text():
             break
 
         # 生成文本
-        result = predict(st.session_state['current_prompt'])
+        result  = predict(st.session_state['current_prompt'])
+       
         generated_text = result
+        print(generated_text)
+        # 添加到列表中
         if len(generated_text) > MODEL_CONFIG['max_gen_seq_len']:
             generated_text = generated_text[:MODEL_CONFIG['max_gen_seq_len']]
         current_results.append(generated_text)
+        
+        
         if len(current_results) == MODEL_CONFIG['rank_list_len']:
             break  # 列表长度已达到最大值，跳出循环
+    
     st.session_state['current_results'] = current_results
-    print(current_results)
+
     return current_results
 
 
@@ -126,7 +141,7 @@ def read_from_json():
                 rank_texts_list.append(data)
     return rank_texts_list
 ######################### 页面定义区（侧边栏） ########################
-st.sidebar.title('让Yi大模型自动给予训练模型的生成进行排序')
+st.sidebar.title('大模型RLHF（ppo奖励模型）训练偏好数据排序助手（ollama本地模型版）')
 # st.sidebar.markdown('''
 #     ```
 #                     
@@ -134,18 +149,24 @@ st.sidebar.title('让Yi大模型自动给予训练模型的生成进行排序')
 # ''')
 st.sidebar.markdown('''
     
-                    简单来说就是你经过sft微调后，想通过RLHF（ppo奖励模型）训练怎么样的模型，就让Yi大模型自动给你的模型生成回答进行排序，最后再导出偏好数据去训练奖励模型。
-    
-''')
-st.sidebar.markdown('本项目开源在[github](https://arxiv.org/pdf/2203.02155.pdf) 。')
+                    简单来说就是你经过sft微调后，想通过RLHF（ppo奖励模型）训练怎么样的模型，就给你的模型生成回答进行排序，最后再导出偏好数据去训练奖励模型，再用奖励模型去训练sft模型
+                    
+                    1、目前已支持ollama本地模型，生成的排序个数等参数都可以直接在代码改
 
+                    2、简单改一下代码就支持Openai模型 api式的云端模型啦
+
+                    3、在研究一个很cool的功能，让大模型自己给自己排序，自己奖励自己......
+''')
+st.sidebar.markdown('本项目开源在[github](https://github.com/zjrwtx/preference_databuilder) 。')
+
+st.sidebar.markdown('[微信公众号：正经人王同学](https://mp.weixin.qq.com/s/t3zAsWZ3djokWEjboaDkmQ) 。')
 
 label_tab, dataset_tab = st.tabs(['Label', 'Dataset'])
 
 
 ######################### 页面定义区（标注页面） ########################
 with label_tab:
-    with st.expander('🔍 Setting Prompts', expanded=True):
+    with st.expander('💡设置一下prompt', expanded=True):
         random_button = st.button('随机 prompt',
                                   help='从prompt池中随机选择一个prompt，可通过修改源码中 MODEL_CONFIG["random_prompts"] 参数来自定义prompt池。')
         if random_button:
