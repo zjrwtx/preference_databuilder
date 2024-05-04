@@ -22,11 +22,10 @@ API_KEY = os.environ.get("API_KEY")
 
 
 client = OpenAI(
-    # defaults to os.environ.get("OPENAI_API_KEY")
-    api_key="dbe000b3e7f44df98d6c3f330cccf5a1",
-    base_url="http://localhost:11434/v1/"
+
+    api_key=API_KEY,
+    base_url=API_BASE
     
-    # base_url="https://api.lingyiwanwu.com/v1/"
 )
 
 
